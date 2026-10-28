@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: hr-policy-assistant
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    envVars:
+      - key: COMPANY_NAME
+        value: Lone Star Logistics
