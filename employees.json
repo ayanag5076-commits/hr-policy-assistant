@@ -1,0 +1,13 @@
+{
+  "_note": "Synthetic demo employees. Not real people. Balances as of the pay period ending 2026-10-23.",
+  "as_of": "2026-10-23",
+  "next_accrual": "2026-11-06",
+  "employees": [
+    {"id": "LSL-1042", "name": "Maria Delgado", "title": "Warehouse Lead", "hire_date": "2018-04-09",
+     "pto_hours": 62.5, "pto_used_ytd": 96.0, "sick_hours": 32.0, "sick_used_ytd": 8.0},
+    {"id": "LSL-2318", "name": "James Carter", "title": "Forklift Operator", "hire_date": "2025-03-17",
+     "pto_hours": 18.5, "pto_used_ytd": 40.0, "sick_hours": 40.0, "sick_used_ytd": 0.0},
+    {"id": "LSL-1877", "name": "Priya Shah", "title": "Dispatch Coordinator", "hire_date": "2021-06-01",
+     "pto_hours": 6.0, "pto_used_ytd": 112.0, "sick_hours": 12.0, "sick_used_ytd": 28.0}
+  ]
+}

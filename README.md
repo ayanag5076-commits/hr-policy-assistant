@@ -10,6 +10,7 @@ Built by Ayana Greer The sample company "Lone Star Logistics" and its handbook a
 - **Hands off sensitive topics:** harassment, discrimination, safety, FMLA and accommodations, pay disputes, and crisis language (points to 988 and the EAP)
 - **Books time with HR:** "talk to HR" returns your booking page link
 - **HR dashboard** at `/hr`: questions asked, answered without HR, handoffs, gaps, and top topics
+- **Personal balances (demo):** pick one of three synthetic employees at the top of the chat and ask "How much PTO do I have left?" or "Can I take 3 days off?". It checks their balance, warns about the 40-hour carryover cap, and cites the policy. Data lives in `employees.json`
 - **QR code** at `/qr` for a slide or breakroom poster
 
 ## Pages
@@ -62,4 +63,5 @@ Replace `handbook.md`. Keep each policy under its own `## <number> <title>` head
 2. **Scan the QR (60 sec):** the room asks real questions. Answers cite the handbook.
 3. **The handoff (40 sec):** type "My manager keeps making comments about me." It refuses to handle it alone and alerts HR.
 4. **Dashboard (40 sec):** show `/hr` filling up live: top topics and questions the handbook missed.
-5. **Close (20 sec):** next step is connecting to UKG or Workday so it can answer "How much PTO do I have left?"
+5. **Personal balance (30 sec):** choose Maria Delgado and ask "How much PTO do I have left?" It warns she'll lose hours at year end. Switch to Priya Shah and ask "Can I take 3 days off?"
+6. **Close (20 sec):** the demo employees are synthetic; next step is a read-only UKG or Workday connection for real balances.

@@ -14,12 +14,14 @@ header{background:#1f3a5f;color:#fff;padding:14px 18px}header h1{margin:0;font-s
 form{display:flex;gap:8px;padding:12px 16px;background:#fff;border-top:1px solid #e5e7eb}
 form div{display:flex;gap:8px;max-width:720px;width:100%;margin:0 auto}
 input{flex:1;padding:12px 14px;border:1px solid #cbd5e1;border-radius:999px;font-size:16px}
+#who{background:#e8eef6;padding:8px 16px;font-size:14px;text-align:center}#who select{font-size:14px;padding:4px 8px;border-radius:8px;border:1px solid #cbd5e1;margin-left:6px}
 button{background:#1f3a5f;color:#fff;border:0;border-radius:999px;padding:0 18px;font-size:15px;cursor:pointer}
 </style></head><body>
 <header><h1>{{company}} HR Assistant</h1><p>Answers from the employee handbook. Sensitive questions go straight to HR.</p></header>
+<div id="who"><label>Signed in as <select id="emp"><option value="">Choose a demo employee</option>{% for e in employees %}<option value="{{e.id}}">{{e.name}}, {{e.title}}</option>{% endfor %}</select></label></div>
 <div id="log"><div class="m b">Hi! Ask me about PTO, benefits, pay, holidays, or company policy. Type "talk to HR" anytime to book a time with a person.</div></div>
 <div id="chips">
-<span class="chip">How much PTO do I get?</span><span class="chip">When is open enrollment?</span>
+<span class="chip">How much PTO do I have left?</span><span class="chip">Can I take 3 days off?</span><span class="chip">How much PTO do I get?</span><span class="chip">When is open enrollment?</span>
 <span class="chip">What's the 401k match?</span><span class="chip">Talk to HR</span></div>
 <form id="f"><div><input id="q" placeholder="Ask a question..." autocomplete="off"><button>Send</button></div></form>
 <script>
@@ -28,8 +30,10 @@ function esc(t){return t.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'
 function add(t,cls){const d=document.createElement('div');d.className='m '+cls;
  d.innerHTML=esc(t).replace(/(https?:\/\/\S+)/g,'<a href="$1" target="_blank">$1</a>');log.appendChild(d);log.scrollTop=log.scrollHeight;return d}
 async function ask(text){if(!text.trim())return;add(text,'u');q.value='';const w=add('...','b');
- try{const r=await fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:text})});
+ try{const r=await fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:text,employee_id:document.getElementById('emp').value})});
  const j=await r.json();w.remove();add(j.answer,'b'+(j.status==='handoff'?' handoff':''));}catch(e){w.textContent='Sorry, something went wrong. Try again.'}}
+const emp=document.getElementById('emp');emp.value=localStorage.getItem('emp')||'';
+emp.onchange=()=>{localStorage.setItem('emp',emp.value);if(emp.value)add('Hi '+emp.options[emp.selectedIndex].text.split(' ')[0]+'! Ask me about your PTO or sick balance anytime.','b')};
 document.getElementById('f').onsubmit=e=>{e.preventDefault();ask(q.value)};
 document.querySelectorAll('.chip').forEach(c=>c.onclick=()=>ask(c.textContent));
 </script></body></html>

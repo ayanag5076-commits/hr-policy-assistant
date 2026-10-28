@@ -17,6 +17,8 @@ HR_ALERT_WEBHOOK = os.environ.get("HR_ALERT_WEBHOOK", "")  # optional Slack/Team
 OPENAI_KEY = os.environ.get("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
 
+EMPLOYEES_PATH = os.environ.get("EMPLOYEES_PATH", os.path.join(BASE, "employees.json"))
+
 app = Flask(__name__, template_folder=BASE)
 
 # ---------- handbook loading and search ----------
@@ -97,6 +99,86 @@ def alert_hr(topic, q, sender, channel):
         except Exception:
             pass
 
+# ---------- demo employee balances (synthetic data only) ----------
+def load_employees():
+    try:
+        return json.load(open(EMPLOYEES_PATH, encoding="utf-8"))
+    except Exception:
+        return {"employees": []}
+
+EMP = load_employees()
+EMPLOYEES = {e["id"]: e for e in EMP.get("employees", [])}
+CARRYOVER_MAX = 40.0
+
+def tenure_years(e):
+    hired = datetime.date.fromisoformat(e["hire_date"])
+    asof = datetime.date.fromisoformat(EMP.get("as_of", datetime.date.today().isoformat()))
+    return (asof - hired).days / 365.25
+
+def accrual_rate(e):
+    y = tenure_years(e)
+    return 4.62 if y < 3 else 6.15 if y < 6 else 7.69
+
+def fmt_h(h):
+    return f"{h:g} hours ({h/8:g} days)" if h % 4 == 0 else f"{h:g} hours (about {h/8:.1f} days)"
+
+def year_end_pto(e):
+    """PTO projected on Dec 31 if no more is used: current balance plus remaining 2026 accruals."""
+    nxt = datetime.date.fromisoformat(EMP.get("next_accrual", "2026-11-06"))
+    periods, end = 0, datetime.date(nxt.year, 12, 31)
+    while nxt <= end:
+        periods += 1; nxt += datetime.timedelta(days=14)
+    return round(e["pto_hours"] + periods * accrual_rate(e), 2)
+
+BAL_RE = r"\b(balance|left|remaining|available|banked|accrued|have)\b"
+TIME_RE = r"\b(pto|vacation|sick|time off|days off|hours off|leave)\b"
+REQ_RE = r"(take|request|use|get|want|need|have)\b.{0,25}?(\d+(?:\.\d+)?|a|one|two|three|four|five|half a)\s*(day|days|hour|hours|week|weeks)\b.{0,15}\b(off|pto|vacation)?"
+WORDNUM = {"a": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "half a": .5}
+
+def balance_answer(q, emp_id):
+    ql = q.lower()
+    is_req = re.search(REQ_RE, ql) and re.search(r"\b(off|pto|vacation|leave)\b", ql)
+    is_bal = re.search(TIME_RE, ql) and re.search(BAL_RE, ql)
+    if not (is_req or is_bal):
+        return None
+    e = EMPLOYEES.get(emp_id or "")
+    if not e:
+        return {"answer": "I can check your balance once I know who you are. Pick your name in the \"Signed in as\" box at the top (demo employees).",
+                "status": "balance", "section": ""}
+    first = e["name"].split()[0]
+    if is_req:
+        m = re.search(REQ_RE, ql)
+        n = m.group(2); n = WORDNUM.get(n, None) if not n[0].isdigit() else float(n)
+        unit = m.group(3)
+        hours = n * (8 if unit.startswith("day") else 40 if unit.startswith("week") else 1)
+        bal = e["sick_hours"] if "sick" in ql else e["pto_hours"]
+        kind = "sick leave" if "sick" in ql else "PTO"
+        if hours <= bal:
+            a = (f"Yes, {first}. That's {hours:g} hours and you have {bal:g} hours of {kind}, leaving {bal-hours:g}. "
+                 + ("Submit it in the portal at least 2 weeks ahead for 3+ days" if hours >= 24 else "Submit it in the portal at least 48 hours ahead")
+                 + " (Handbook, Section 2.2 Requesting PTO)")
+        else:
+            short = hours - bal
+            a = (f"Not fully, {first}. That's {hours:g} hours but you have {bal:g} hours of {kind}, so you're {short:g} short. "
+                 f"You earn {accrual_rate(e):g} more PTO hours on {datetime.date.fromisoformat(EMP['next_accrual']):%b %-d}. "
+                 f"Want to talk options with HR? Type \"talk to HR\". (Handbook, Section 2.1 Paid Time Off (PTO) Accrual)")
+        return {"answer": a, "status": "balance", "section": "2.2 Requesting PTO"}
+    parts = []
+    if "sick" in ql:
+        parts.append(f"{first}, you have {fmt_h(e['sick_hours'])} of sick leave left this year (40 per year, separate from PTO).")
+        sec = "2.3 Sick Leave"
+    else:
+        parts.append(f"{first}, you have {fmt_h(e['pto_hours'])} of PTO. You earn {accrual_rate(e):g} hours each pay period; next on "
+                     f"{datetime.date.fromisoformat(EMP['next_accrual']):%b %-d}.")
+        proj = year_end_pto(e)
+        if proj > CARRYOVER_MAX:
+            parts.append(f"Heads up: you're on track for {proj:.1f} hours by Dec 31, and only {CARRYOVER_MAX:g} carry over, so plan to use about {proj-CARRYOVER_MAX:.0f} hours or lose them.")
+        sec = "2.1 Paid Time Off (PTO) Accrual"
+        if "sick" not in ql and re.search(r"\b(all|everything|both)\b", ql):
+            parts.append(f"Sick leave: {e['sick_hours']:g} hours.")
+    a = " ".join(parts) + f" (Handbook, Section {sec})"
+    return {"answer": a, "status": "balance", "section": sec}
+
 # ---------- answering ----------
 PROMPT = """You are the HR policy assistant for {company}. Answer the employee's question using ONLY the handbook sections below.
 Rules: Be friendly and brief (under 60 words, it may be read as a text message). Use plain words. End with the citation in this form: (Handbook, Section <number> <title>).
@@ -125,7 +207,7 @@ def extractive(question, hits):
     best = [s for s in sents if s in best]
     return " ".join(best) + f" (Handbook, Section {sec['title']})"
 
-def answer(question, channel="web", sender="anonymous"):
+def answer(question, channel="web", sender="anonymous", emp_id=None):
     q = question.strip()
     if not q:
         return {"answer": "Hi! Ask me anything about PTO, benefits, pay, or company policy.", "status": "greeting"}
@@ -135,6 +217,11 @@ def answer(question, channel="web", sender="anonymous"):
     if not topic and re.search(r"^talk\W*$|\b(talk|speak|meet)\b.{0,25}\b(hr|someone|somebody|person|human|rep)\b|\bappointment\b|\brepresentative\b|\breal person\b", q.lower()):
         a = f"Happy to connect you. Pick a time with HR here: {BOOKING_URL}"
         log(channel, sender, q, a, "", "booking"); return {"answer": a, "status": "booking"}
+    if not topic:
+        b = balance_answer(q, emp_id)
+        if b:
+            who = EMPLOYEES.get(emp_id or "", {}).get("name", sender)
+            log(channel, who, q, b["answer"], b["section"], "balance"); return b
 
     if topic:
         alert_hr(topic, q, sender, channel)
@@ -169,12 +256,16 @@ def answer(question, channel="web", sender="anonymous"):
 # ---------- routes ----------
 @app.route("/")
 def chat():
-    return render_template("chat.html", company=COMPANY)
+    return render_template("chat.html", company=COMPANY, employees=list(EMPLOYEES.values()))
 
 @app.route("/api/ask", methods=["POST"])
 def api_ask():
     data = request.get_json(force=True, silent=True) or {}
-    return jsonify(answer(data.get("question", ""), "web", data.get("sender", "web user")))
+    return jsonify(answer(data.get("question", ""), "web", data.get("sender", "web user"), data.get("employee_id")))
+
+@app.route("/api/employees")
+def api_employees():
+    return jsonify([{"id": e["id"], "name": e["name"], "title": e["title"]} for e in EMPLOYEES.values()])
 
 @app.route("/sms", methods=["POST"])
 def sms():
@@ -189,7 +280,8 @@ def hr():
         top = c.execute("select section,count(*) n from log where status='answered' group by section order by n desc limit 8").fetchall()
         counts = dict(c.execute("select case when status like 'handoff%' then 'handoff' else status end s,count(*) from log group by s").fetchall())
     total = sum(counts.values())
-    return render_template("hr.html", rows=rows, top=top, counts=counts, total=total, company=COMPANY)
+    staff = [dict(e, rate=accrual_rate(e), year_end=year_end_pto(e), at_risk=max(0, round(year_end_pto(e) - CARRYOVER_MAX))) for e in EMPLOYEES.values()]
+    return render_template("hr.html", rows=rows, top=top, counts=counts, total=total, company=COMPANY, staff=staff, as_of=EMP.get("as_of", ""))
 
 @app.route("/qr")
 def qr():
@@ -200,7 +292,7 @@ def qr():
 
 @app.route("/health")
 def health():
-    return {"ok": True, "sections": len(SECTIONS), "llm": bool(OPENAI_KEY)}
+    return {"ok": True, "sections": len(SECTIONS), "llm": bool(OPENAI_KEY), "employees": len(EMPLOYEES)}
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=False)
