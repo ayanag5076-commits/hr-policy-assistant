@@ -30,7 +30,7 @@ export OPENAI_API_KEY="your key"          # optional; without it, answers quote 
 export HR_BOOKING_URL="your booking link"  # e.g. a Google Calendar appointment page
 python3 app.py
 ```
-Open http://localhost:5000 for the chat and http://localhost:5000/hr for the dashboard.
+Open https://hr-policy-assistant-mhh1.onrender.com for the chat and https://hr-policy-assistant-mhh1.onrender.com/hr for the dashboard.
 
 ## Put it online (free, Render)
 1. Create a new GitHub repo named `hr-policy-assistant` and upload these files.
