@@ -2,7 +2,7 @@
 
 Employees ask HR questions by web chat or text message. The assistant answers from the employee handbook, cites the exact section, and sends sensitive issues (harassment, safety, medical leave, pay disputes) straight to a real HR person. HR gets a live dashboard of what people ask most.
 
-Built by Ayana Greer for AI Tinkerers DFW Demo Night, Nov 5, 2026. The sample company "Lone Star Logistics" and its handbook are fictional.
+Built by Ayana Greer The sample company "Lone Star Logistics" and its handbook are fictional.
 
 ## What it does
 - **Answers with a citation:** "(Handbook, Section 2.1 Paid Time Off (PTO) Accrual)"
